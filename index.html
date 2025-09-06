@@ -38,7 +38,7 @@
         canvas {
             background-color: #03131a; /* Sky blue background for the game area */
             border-radius: 12px;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+            /* box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5); */ /* Removed for performance */
             border: 4px solid #162447;
             display: block; /* Ensures it behaves as a block-level element */
         }
@@ -87,21 +87,22 @@
         const BIRD_WIDTH = 40;
         const BIRD_HEIGHT = 30;
         const BIRD_X = gameWidth / 4;
-        const GRAVITY = 0.1; // Slower, more forgiving gravity
-        const FLAP_STRENGTH = -4; // A gentler flap to match the new gravity
+        const GRAVITY = 900; // pixels per second per second (doubled)
+        const FLAP_STRENGTH = -440; // pixels per second (instantaneous velocity change) (doubled)
 
         const PIPE_WIDTH = 70;
         const PIPE_GAP = 250; // Wider gap for easier passage
-        const PIPE_SPEED = -1; // Slower pipe speed
-        const PIPE_SPAWN_INTERVAL = 350; // More time between pipes
+        const PIPE_SPEED = -180; // pixels per second (doubled)
+        const PIPE_SPAWN_INTERVAL = 1.25; // seconds between pipes (halved)
 
         // --- Game Variables ---
         let birdY, birdVelocity;
         let pipes;
-        let frameCount;
+        let timeSinceLastPipe;
         let score;
         let gameState; // 'start', 'playing', 'gameOver'
         let waterSplashes;
+        let lastTime; // For delta time calculation
 
         // --- Sound Effects ---
         const flapSound = new Audio('effectSN.wav'); // Sound for flapping
@@ -118,14 +119,12 @@
         const bird = {
             draw: () => {
                 ctx.fillStyle = '#f7b733'; // Yellow color for the bird
-                ctx.strokeStyle = '#d35400'; // Darker orange for the border
-                ctx.lineWidth = 3;
                 ctx.fillRect(BIRD_X, birdY, BIRD_WIDTH, BIRD_HEIGHT);
-                ctx.strokeRect(BIRD_X, birdY, BIRD_WIDTH, BIRD_HEIGHT);
+                // ctx.strokeRect(BIRD_X, birdY, BIRD_WIDTH, BIRD_HEIGHT); // Removed for performance
             },
-            update: () => {
-                birdVelocity += GRAVITY;
-                birdY += birdVelocity;
+            update: (deltaTime) => {
+                birdVelocity += GRAVITY * deltaTime;
+                birdY += birdVelocity * deltaTime;
             },
             flap: () => {
                 // Provides the upward thrust and handles starting the game
@@ -152,23 +151,21 @@
             };
         }
 
-        function updateAndDrawPipes() {
+        function updateAndDrawPipes(deltaTime) {
             for (let i = pipes.length - 1; i >= 0; i--) {
                 const p = pipes[i];
-                p.x += PIPE_SPEED; // Move pipe to the left
+                p.x += PIPE_SPEED * deltaTime; // Move pipe based on time
 
                 // Draw the pipes
                 ctx.fillStyle = '#27ae60'; // Green color for pipes
-                ctx.strokeStyle = '#1e8449'; // Darker green for border
-                ctx.lineWidth = 4;
 
                 // Top pipe
                 ctx.fillRect(p.x, 0, PIPE_WIDTH, p.topHeight);
-                ctx.strokeRect(p.x, 0, PIPE_WIDTH, p.topHeight);
+                // ctx.strokeRect(p.x, 0, PIPE_WIDTH, p.topHeight); // Removed for performance
 
                 // Bottom pipe
                 ctx.fillRect(p.x, p.bottomY, PIPE_WIDTH, canvas.height - p.bottomY);
-                ctx.strokeRect(p.x, p.bottomY, PIPE_WIDTH, canvas.height - p.bottomY);
+                // ctx.strokeRect(p.x, p.bottomY, PIPE_WIDTH, canvas.height - p.bottomY); // Removed for performance
 
 
                 // --- Scoring ---
@@ -196,37 +193,29 @@
 
         // --- Game State & UI ---
         function drawUI() {
-            ctx.fillStyle = 'black';
-            //ctx.strokeStyle = 'white';
-            ctx.lineWidth = 2;
+            ctx.fillStyle = 'white'; // Changed to white for better visibility without stroke
             ctx.textAlign = 'center';
 
             if (gameState === 'start') {
                 ctx.font = "24px 'Press Start 2P'";
-                ctx.fillText('Click or Press Space', canvas.width / 2, canvas.height / 2 - 20);
-                ctx.strokeText('Click or Press Space', canvas.width / 2, canvas.height / 2 - 20);
+                ctx.fillText('Click or Tap', canvas.width / 2, canvas.height / 2 - 20);
                 ctx.font = "20px 'Press Start 2P'";
                 ctx.fillText('to Flap!', canvas.width / 2, canvas.height / 2 + 20);
-                ctx.strokeText('to Flap!', canvas.width / 2, canvas.height / 2 + 20);
             } else if (gameState === 'gameOver') {
                 ctx.font = "40px 'Press Start 2P'";
                 ctx.fillText('Game Over', canvas.width / 2, canvas.height / 2 - 50);
-                ctx.strokeText('Game Over', canvas.width / 2, canvas.height / 2 - 50);
 
                 ctx.font = "24px 'Press Start 2P'";
                 ctx.fillText(`Score: ${score}`, canvas.width / 2, canvas.height / 2);
-                ctx.strokeText(`Score: ${score}`, canvas.width / 2, canvas.height / 2);
 
                 ctx.font = "16px 'Press Start 2P'";
                 ctx.fillText('Click to Restart', canvas.width / 2, canvas.height / 2 + 50);
-                ctx.strokeText('Click to Restart', canvas.width / 2, canvas.height / 2 + 50);
             }
 
             // Always draw the score while playing
             if (gameState === 'playing' || gameState === 'gameOver') {
                 ctx.font = "40px 'Press Start 2P'";
                 ctx.fillText(score, canvas.width / 2, 70);
-                ctx.strokeText(score, canvas.width / 2, 70);
             }
         }
 
@@ -242,7 +231,7 @@
             birdY = canvas.height / 2;
             birdVelocity = 0;
             pipes = [];
-            frameCount = 0;
+            timeSinceLastPipe = PIPE_SPAWN_INTERVAL; // Spawn a pipe right away on start
             score = 0;
             waterSplashes = []; // Reset the splashes
             gameState = 'start'; // Start with the initial screen
@@ -252,7 +241,7 @@
             if (gameState === 'playing') {
                 crashSound.currentTime = 0;
                 crashSound.play().catch(e => console.error("Error playing crash sound:", e));
-                createSplashes(50); // Create the splash effect
+                createSplashes(25); // Reduced from 50 to 25 for better performance
                 gameState = 'gameOver';
             }
         }
@@ -310,21 +299,30 @@
 
 
         // --- Main Game Loop ---
-        function gameLoop() {
+        function gameLoop(currentTime) {
+            // Calculate delta time (time since last frame)
+            if (!lastTime) {
+                lastTime = currentTime;
+            }
+            const deltaTime = (currentTime - lastTime) / 1000; // Time in seconds
+            lastTime = currentTime;
+
+
             // Clear the canvas for the next frame
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
             if (gameState === 'playing') {
                 // Spawn new pipes at intervals
-                if (frameCount % PIPE_SPAWN_INTERVAL === 0) {
+                timeSinceLastPipe += deltaTime;
+                if (timeSinceLastPipe >= PIPE_SPAWN_INTERVAL) {
                     pipes.push(createPipe());
+                    timeSinceLastPipe = 0;
                 }
 
                 // Update game elements
-                bird.update();
-                updateAndDrawPipes();
+                bird.update(deltaTime);
+                updateAndDrawPipes(deltaTime);
                 checkGroundCollision();
-                frameCount++;
             }
 
             // Draw game elements
@@ -360,8 +358,9 @@
         // --- Initialize and Start ---
         resetGame(); // Set up the initial state
         resizeGame(); // Set initial canvas size based on the window
-        gameLoop(); // Start the game loop
+        requestAnimationFrame(gameLoop); // Start the game loop
     </script>
 </body>
 </html>
+
 
