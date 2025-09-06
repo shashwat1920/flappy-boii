@@ -53,16 +53,40 @@
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
 
-        // Set canvas dimensions - suitable for most laptop screens
-        const canvasWidth = 480;
-        const canvasHeight = 640;
-        canvas.width = canvasWidth;
-        canvas.height = canvasHeight;
+        // Set base game dimensions for a consistent aspect ratio
+        const gameWidth = 480;
+        const gameHeight = 640;
+        canvas.width = gameWidth;
+        canvas.height = gameHeight;
+
+        // --- Responsive Canvas Sizing ---
+        function resizeGame() {
+            const viewportWidth = window.innerWidth;
+            const viewportHeight = window.innerHeight;
+            const gameAspectRatio = gameWidth / gameHeight;
+            const viewportAspectRatio = viewportWidth / viewportHeight;
+
+            let newCanvasWidth, newCanvasHeight;
+
+            // Adjust canvas size based on which dimension is the constraint, using 90% of the viewport
+            if (viewportAspectRatio > gameAspectRatio) {
+                // Viewport is wider than the game, so height is the limiting factor
+                newCanvasHeight = viewportHeight * 0.9;
+                newCanvasWidth = newCanvasHeight * gameAspectRatio;
+            } else {
+                // Viewport is taller than the game, so width is the limiting factor
+                newCanvasWidth = viewportWidth * 0.9;
+                newCanvasHeight = newCanvasWidth / gameAspectRatio;
+            }
+
+            canvas.style.width = `${newCanvasWidth}px`;
+            canvas.style.height = `${newCanvasHeight}px`;
+        }
 
         // --- Game Constants ---
         const BIRD_WIDTH = 40;
         const BIRD_HEIGHT = 30;
-        const BIRD_X = canvas.width / 4;
+        const BIRD_X = gameWidth / 4;
         const GRAVITY = 0.1; // Slower, more forgiving gravity
         const FLAP_STRENGTH = -4; // A gentler flap to match the new gravity
 
@@ -331,14 +355,13 @@
         window.addEventListener('keydown', handleInput);
         window.addEventListener('mousedown', handleInput);
         window.addEventListener('touchstart', handleInput);
+        window.addEventListener('resize', resizeGame); // Add resize listener
 
         // --- Initialize and Start ---
         resetGame(); // Set up the initial state
+        resizeGame(); // Set initial canvas size based on the window
         gameLoop(); // Start the game loop
     </script>
 </body>
 </html>
-
-
-
 
